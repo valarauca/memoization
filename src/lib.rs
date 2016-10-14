@@ -36,7 +36,6 @@
 //!necessarily needs standard. This maybe a future change.
 
 use std::marker::PhantomData;
-use std::clone::Clone;
 use std::ops::Deref;
 use std::borrow::Borrow;
 use std::ops::DerefMut;
@@ -67,11 +66,11 @@ use std::ops::DerefMut;
 ///      assert!( eq_str( &dut.data, "9001") );
 ///
 ///
-pub enum Memoized<I:'static,O:Clone,Func:Fn(I)->O> {
+pub enum Memoized<I:'static,O,Func:Fn(I)->O> {
     UnInitialized(PhantomData<&'static I>,Box<Func>),
     Processed(O),
 }
-impl<I:'static,O:Clone,Func:Fn(I)->O> Memoized<I,O,Func> {
+impl<I:'static,O,Func:Fn(I)->O> Memoized<I,O,Func> {
     
     ///Build a new memoized field. The user will pass a lambda function
     ///that will initialize the field.
@@ -110,54 +109,6 @@ impl<I:'static,O:Clone,Func:Fn(I)->O> Memoized<I,O,Func> {
         };
         *self = Memoized::Processed(val);
     }
-    ///When passed input data the enum will execute, and return a CLONE of its
-    ///result. The data will be created at this stage. If the data already
-    ///exists it will return a clone of its internal field, reguardless of
-    ///developer input.
-    ///
-    ///     use memoization::Memoized;
-    ///
-    ///     let tup: (i32,i64,&'static str) = (20,-15,"Hello World!");
-    ///     let lambda = | a: (i32,i64,&str) | -> String {
-    ///           format!("Line {:?} DateCode {:?} Log \"{}\"",a.0,a.1,a.2)
-    ///     };
-    ///     let mut memoized = Memoized::new(lambda);
-    ///     //process + fetch a copy
-    ///     let output: String = memoized.fetch(tup);
-    ///     assert_eq!( output, "Line 20 DateCode -15 Log \"Hello World!\"".to_string());
-    ///
-    pub fn fetch(&mut self, data: I) -> O {
-        let (flag,val) = match self {
-            &mut Memoized::Processed(ref x) => (false,x.clone()),
-            &mut Memoized::UnInitialized(_,ref z) => (true,z(data))
-        };
-        if flag {
-            *self = Memoized::Processed(val.clone());
-        }
-        val
-    }
-    ///Clones a Processed field. If the field is not Processed the
-    ///function will panic.
-    ///
-    ///     use memoization::Memoized;
-    ///
-    ///     let tup: (i32,i64,&'static str) = (20,-15,"Hello World!");
-    ///     let lambda = | a: (i32,i64,&str) | -> String {
-    ///           format!("Line {:?} DateCode {:?} Log \"{}\"",a.0,a.1,a.2)
-    ///     };
-    ///     let mut memoized = Memoized::new(lambda);
-    ///     //process the data
-    ///     memoized.process(tup);
-    ///     //get copy of the data
-    ///     let x: String = memoized.get();
-    ///     assert_eq!( x, "Line 20 DateCode -15 Log \"Hello World!\"".to_string());
-    ///
-    pub fn get(&self) -> O {
-        match self {
-            &Memoized::Processed(ref x) => x.clone(),
-            _ => panic!("Called get on an uninitialized field")
-        }
-    }
     ///Informs user if a field has been Processed.
     ///
     ///     use memoization::Memoized;
@@ -181,7 +132,7 @@ impl<I:'static,O:Clone,Func:Fn(I)->O> Memoized<I,O,Func> {
         }
     }
 }
-impl<I:'static,O:Clone,Func:Fn(I)->O> Deref for Memoized<I,O,Func> {
+impl<I:'static,O,Func:Fn(I)->O> Deref for Memoized<I,O,Func> {
     type Target = O;
     fn deref<'b>(&'b self) -> &'b Self::Target {
         match self {
@@ -190,7 +141,7 @@ impl<I:'static,O:Clone,Func:Fn(I)->O> Deref for Memoized<I,O,Func> {
         }
     }
 }
-impl<I:'static,O:Clone,Func:Fn(I)->O> DerefMut for Memoized<I,O,Func> {
+impl<I:'static,O,Func:Fn(I)->O> DerefMut for Memoized<I,O,Func> {
     fn deref_mut<'b>(&'b mut self) -> &'b mut Self::Target {
         if self.processed() {
             match self {
@@ -206,7 +157,7 @@ impl<I:'static,O:Clone,Func:Fn(I)->O> DerefMut for Memoized<I,O,Func> {
         }
     }
 }
-impl<I:'static,O:Clone,Func:Fn(I)->O> Borrow<O> for Memoized<I,O,Func> {
+impl<I:'static,O,Func:Fn(I)->O> Borrow<O> for Memoized<I,O,Func> {
     fn borrow<'b>(&'b self) -> &'b O {
         match self {
             &Memoized::Processed(ref x) => x,
@@ -228,32 +179,12 @@ mod test {
         //value shouldn't be initialized
         assert_eq!(dut.processed(), false);
         //initialized the value
-        assert_eq!(&dut.fetch(5), "5");
+        dut.process(5);
         //check value is initialized
         assert_eq!(dut.processed(), true);
-        //check get works
-        assert_eq!(&dut.get(), "5");
-        //check fetch no longer modifies value
-        assert_eq!(&dut.fetch(2000), "5");
-        assert_eq!(&dut.get(), "5");
         //check on borrow
         let x: &str = &dut;
         assert_eq!( x, "5");
-    }
-    #[test]
-    #[should_panic]
-    fn test_memoized_1() {
-        //build lambda function
-        let lambda = |x: i32| -> String {
-            x.to_string()
-        };
-        //build object
-        let dut = Memoized::new(lambda);
-        //value shouldn't be initialized
-        assert_eq!(dut.processed(), false);
-        //get object
-        //THIS WILL PANICE
-        assert_eq!(&dut.get(), "5");
     }
     #[test]
     fn test_memoized_2() {
@@ -270,7 +201,7 @@ mod test {
     fn eq_str(a: &str, b: &str) -> bool {
         a == b
     }
-    struct Testing<I:'static,O:Clone,F: Fn(I)->O> {
+    struct Testing<I:'static,O,F: Fn(I)->O> {
         data: Memoized<I,O,F>
     }
     #[test]
