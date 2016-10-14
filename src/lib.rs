@@ -13,16 +13,27 @@
 //limitations under the License.
 
 //!Memoization offers a simple generic enum that allows for variables and 
-//!structure fields to become memoized. The generic signature is pretty ugly
-//!but a user should be able to contain that within a structure. This is a 
-//!fairly powerful pattern.
+//!structure fields to become memoized. This crate only has 1 instance of unsafe
+//!code within itself.
+//!
+//!The goal of this crate is to enable complex/timely operations that only
+//!need to be performed once to only be done once. And then to be accessed via 
+//!a structure field, and borrowed like a normal structure field. Not though
+//!weird function or memory allocation patterns.
+//!
+//!When constructed Memoized will be as large as the constructed field.
+//!The act of writing to, or processing/initializing the field does not cost
+//!allocations (unless the initalizer lambda does). The minimum size is 2 
+//!pointers.
 //!
 //!The deref, derefmut, and borrow fields are overloaded. So as a structure
-//!field the contained data can be written to, and borrowed much like a normal
-//!field.
+//!field the contained data can be written to, and borrowed as if it was the 
+//!normal field it constructs. derefmut does contain unsafe code, to allow the
+//!user to write to the uninitailized field. This is mearly to cut down on
+//!allocations performed. 
 //!
-//!I believe this should be able to be ported to `core`, as none of its codee
-//!necessarily needs standard. This maybe a future project.
+//!I believe this should be able to be ported to `core`, as none of its code
+//!necessarily needs standard. This maybe a future change.
 
 use std::marker::PhantomData;
 use std::clone::Clone;
@@ -30,8 +41,9 @@ use std::ops::Deref;
 use std::borrow::Borrow;
 use std::ops::DerefMut;
 
-///The enumerator that holds data. In its pre-processed state it holds a 
-///pointer to the lambda that assigns its future constant value. 
+///Magical Enum
+///
+///The generic enum that allows for memoization to happeni.
 ///
 ///      use memoization::Memoized;
 ///
@@ -42,7 +54,6 @@ use std::ops::DerefMut;
 ///      fn eq_str(a: &str, b: &str) -> bool {
 ///            a == b
 ///      }
-///
 ///
 ///      let lambda = |x: i32 | -> String {
 ///            x.to_string()
@@ -63,7 +74,7 @@ pub enum Memoized<I:'static,O:Clone,Func:Fn(I)->O> {
 impl<I:'static,O:Clone,Func:Fn(I)->O> Memoized<I,O,Func> {
     
     ///Build a new memoized field. The user will pass a lambda function
-    ///that will provide the constructor with typing data.
+    ///that will initialize the field.
     ///
     ///     use memoization::Memoized;
     ///     
@@ -77,7 +88,7 @@ impl<I:'static,O:Clone,Func:Fn(I)->O> Memoized<I,O,Func> {
         Memoized::UnInitialized(PhantomData,Box::new(lambda))
     }
     ///This will convert an UnInitialized value to a Processed value. When
-    ///called on a processed value it will panic.
+    ///called on a Processed value this function will PANIC.
     ///
     ///     use memoization::Memoized;
     ///
@@ -101,7 +112,8 @@ impl<I:'static,O:Clone,Func:Fn(I)->O> Memoized<I,O,Func> {
     }
     ///When passed input data the enum will execute, and return a CLONE of its
     ///result. The data will be created at this stage. If the data already
-    ///exists it will return a clone of the data.
+    ///exists it will return a clone of its internal field, reguardless of
+    ///developer input.
     ///
     ///     use memoization::Memoized;
     ///
@@ -124,7 +136,7 @@ impl<I:'static,O:Clone,Func:Fn(I)->O> Memoized<I,O,Func> {
         }
         val
     }
-    ///returns a clone of a processed field. If the field is not processed the
+    ///Clones a Processed field. If the field is not Processed the
     ///function will panic.
     ///
     ///     use memoization::Memoized;
@@ -146,7 +158,7 @@ impl<I:'static,O:Clone,Func:Fn(I)->O> Memoized<I,O,Func> {
             _ => panic!("Called get on an uninitialized field")
         }
     }
-    ///Informs user if filed has been processed/initalized.
+    ///Informs user if a field has been Processed.
     ///
     ///     use memoization::Memoized;
     ///
@@ -156,13 +168,13 @@ impl<I:'static,O:Clone,Func:Fn(I)->O> Memoized<I,O,Func> {
     ///     };
     ///     let mut memoized = Memoized::new(lambda);
     ///     //data is not initalized/processed
-    ///     assert!( ! memoized.is_initialized() );
+    ///     assert!( ! memoized.processed() );
     ///     //process the data
     ///     memoized.process(tup);
     ///     //data is now initalized
-    ///     assert!( memoized.is_initialized() );
+    ///     assert!( memoized.processed() );
     ///
-    pub fn is_initialized(&self) -> bool {
+    pub fn processed(&self) -> bool {
         match self {
             &Memoized::Processed(_) => true,
             _ => false
@@ -180,7 +192,7 @@ impl<I:'static,O:Clone,Func:Fn(I)->O> Deref for Memoized<I,O,Func> {
 }
 impl<I:'static,O:Clone,Func:Fn(I)->O> DerefMut for Memoized<I,O,Func> {
     fn deref_mut<'b>(&'b mut self) -> &'b mut Self::Target {
-        if self.is_initialized() {
+        if self.processed() {
             match self {
                 &mut Memoized::Processed(ref mut x) => return x,
                 _ => unreachable!()
@@ -214,11 +226,11 @@ mod test {
         //build object
         let mut dut = Memoized::new(lambda);
         //value shouldn't be initialized
-        assert_eq!(dut.is_initialized(), false);
+        assert_eq!(dut.processed(), false);
         //initialized the value
         assert_eq!(&dut.fetch(5), "5");
         //check value is initialized
-        assert_eq!(dut.is_initialized(), true);
+        assert_eq!(dut.processed(), true);
         //check get works
         assert_eq!(&dut.get(), "5");
         //check fetch no longer modifies value
@@ -238,7 +250,7 @@ mod test {
         //build object
         let dut = Memoized::new(lambda);
         //value shouldn't be initialized
-        assert_eq!(dut.is_initialized(), false);
+        assert_eq!(dut.processed(), false);
         //get object
         //THIS WILL PANICE
         assert_eq!(&dut.get(), "5");
@@ -251,7 +263,7 @@ mod test {
         };
         let mut dut = Memoized::new(lambda);
         *dut = "5000".to_string();
-        assert_eq!(dut.is_initialized(), true);
+        assert_eq!(dut.processed(), true);
         assert_eq!(*dut, "5000");
         assert!( eq_str(&dut, "5000"));
     }
@@ -270,11 +282,11 @@ mod test {
             data: Memoized::new(lambda)
         };
         //data doesn't exist yet
-        assert!( ! dut.data.is_initialized());
+        assert!( ! dut.data.processed());
         //assign data
         *dut.data = "9000".to_string();
         //now it is
-        assert!( dut.data.is_initialized());
+        assert!( dut.data.processed());
         assert!( eq_str(&dut.data, "9000"));
     }
 }

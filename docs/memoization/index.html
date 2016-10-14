@@ -47,26 +47,36 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a id='src-0' class='srclink' href='../src/memoization/src/lib.rs.html#15-280' title='goto source code'>[src]</a></span></h1>
+               </span><a id='src-0' class='srclink' href='../src/memoization/src/lib.rs.html#15-292' title='goto source code'>[src]</a></span></h1>
 <div class='docblock'><p>Memoization offers a simple generic enum that allows for variables and
-structure fields to become memoized. The generic signature is pretty ugly
-but a user should be able to contain that within a structure. This is a 
-fairly powerful pattern.</p>
+structure fields to become memoized. This crate only has 1 instance of unsafe
+code within itself.</p>
+
+<p>The goal of this crate is to enable complex/timely operations that only
+need to be performed once to only be done once. And then to be accessed via 
+a structure field, and borrowed like a normal structure field. Not though
+weird function or memory allocation patterns.</p>
+
+<p>When constructed Memoized will be as large as the constructed field.
+The act of writing to, or processing/initializing the field does not cost
+allocations (unless the initalizer lambda does). The minimum size is 2 
+pointers.</p>
 
 <p>The deref, derefmut, and borrow fields are overloaded. So as a structure
-field the contained data can be written to, and borrowed much like a normal
-field.</p>
+field the contained data can be written to, and borrowed as if it was the 
+normal field it constructs. derefmut does contain unsafe code, to allow the
+user to write to the uninitailized field. This is mearly to cut down on
+allocations performed. </p>
 
-<p>I believe this should be able to be ported to <code>core</code>, as none of its codee
-necessarily needs standard. This maybe a future project.</p>
+<p>I believe this should be able to be ported to <code>core</code>, as none of its code
+necessarily needs standard. This maybe a future change.</p>
 </div><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
 <table>
                        <tr class=' module-item'>
                            <td><a class='enum' href='enum.Memoized.html'
                                   title='memoization::Memoized'>Memoized</a></td>
                            <td class='docblock short'>
-                                <p>The enumerator that holds data. In its pre-processed state it holds a
-pointer to the lambda that assigns its future constant value. </p>
+                                <p>Magical Enum</p>
                            </td>
                        </tr></table></section>
     <section id='search' class="content hidden"></section>
