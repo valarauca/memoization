@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["Memoized","The enumerator that holds data. In its pre-processed state it holds a pointer to the lambda that assigns its future constant value. "]]});
