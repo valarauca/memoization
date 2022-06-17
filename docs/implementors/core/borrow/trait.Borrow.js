@@ -1,10 +1,3 @@
 (function() {var implementors = {};
-implementors["memoization"] = ["impl&lt;I:&nbsp;'static,&nbsp;O,&nbsp;Func:&nbsp;<a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(I) -&gt; O&gt; <a class='trait' href='https://doc.rust-lang.org/nightly/core/borrow/trait.Borrow.html' title='core::borrow::Borrow'>Borrow</a>&lt;O&gt; for <a class='enum' href='memoization/enum.Memoized.html' title='memoization::Memoized'>Memoized</a>&lt;I,&nbsp;O,&nbsp;Func&gt;",];
-
-            if (window.register_implementors) {
-                window.register_implementors(implementors);
-            } else {
-                window.pending_implementors = implementors;
-            }
-        
-})()
+implementors["memoization"] = [{"text":"impl&lt;O, Func:&nbsp;<a class=\"trait\" href=\"https://doc.rust-lang.org/1.61.0/core/ops/function/trait.FnOnce.html\" title=\"trait core::ops::function::FnOnce\">FnOnce</a>() -&gt; O&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/1.61.0/core/borrow/trait.Borrow.html\" title=\"trait core::borrow::Borrow\">Borrow</a>&lt;O&gt; for <a class=\"enum\" href=\"memoization/enum.Memoized.html\" title=\"enum memoization::Memoized\">Memoized</a>&lt;O, Func&gt;","synthetic":false,"types":["memoization::Memoized"]}];
+if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

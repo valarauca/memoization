@@ -1,0 +1,3 @@
+(function() {var implementors = {};
+implementors["memoization"] = [{"text":"impl&lt;O, Func:&nbsp;<a class=\"trait\" href=\"https://doc.rust-lang.org/1.61.0/core/ops/function/trait.FnOnce.html\" title=\"trait core::ops::function::FnOnce\">FnOnce</a>() -&gt; O&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/1.61.0/core/ops/deref/trait.DerefMut.html\" title=\"trait core::ops::deref::DerefMut\">DerefMut</a> for <a class=\"enum\" href=\"memoization/enum.Memoized.html\" title=\"enum memoization::Memoized\">Memoized</a>&lt;O, Func&gt;","synthetic":false,"types":["memoization::Memoized"]}];
+if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

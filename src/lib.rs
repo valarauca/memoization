@@ -46,15 +46,17 @@ use std::ops::DerefMut;
 ///
 ///      use memoization::Memoized;
 ///
-///      struct Example<I:'static, O: Clone, F: Fn(I) -> O> {
-///           data: Memoized<I,O,F>
+///      struct Example<O: Clone, F: FnOnce() -> O> {
+///           data: Memoized<O,F>
 ///      }
 ///
 ///      fn eq_str(a: &str, b: &str) -> bool {
 ///            a == b
 ///      }
 ///
-///      let lambda = |x: i32 | -> String {
+///      let x = 9001;
+///
+///      let lambda = move || -> String {
 ///            x.to_string()
 ///      };
 ///      let mut dut = Example {
@@ -66,62 +68,56 @@ use std::ops::DerefMut;
 ///      assert!( eq_str( &dut.data, "9001") );
 ///
 ///
-pub enum Memoized<I:'static,O,Func:Fn(I)->O> {
-    UnInitialized(PhantomData<&'static I>,Box<Func>),
-    Processed(O),
+pub enum Memoized<O,Func:FnOnce()->O> {
+    UnInitialized(Box<Func>),
+    Processed(Option<O>),
 }
-impl<I:'static,O,Func:Fn(I)->O> Memoized<I,O,Func> {
+impl<O,Func:FnOnce()->O> Memoized<O,Func> {
     
-    ///Build a new memoized field. The user will pass a lambda function
-    ///that will initialize the field.
-    ///
-    ///     use memoization::Memoized;
-    ///     
-    ///     let lambda = | a: (i32,i64,&str) | -> String {
-    ///           format!("Line {:?} DateCode {:?} Log \"{}\"",a.0,a.1,a.2)
-    ///     };
-    ///     
-    ///     let memoized = Memoized::new(lambda);
-    ///     
-    pub fn new(lambda: Func) -> Memoized<I,O,Func> {
-        Memoized::UnInitialized(PhantomData,Box::new(lambda))
+    /// Build a new memoized field. The user will pass a lambda function
+    /// that will initialize the field.
+    pub fn new(lambda: Func) -> Memoized<O,Func> {
+        Memoized::UnInitialized(Box::new(lambda))
     }
-    ///This will convert an UnInitialized value to a Processed value. When
-    ///called on a Processed value this function will PANIC.
+    /// This will convert an UnInitialized value to a Processed value. When
+    /// called on a Processed value this function will PANIC.
     ///
     ///     use memoization::Memoized;
     ///
-    ///     let tup: (i32,i64,&'static str) = (20,-15,"Hello World!");
-    ///     let lambda = | a: (i32,i64,&str) | -> String {
+    ///     let a: (i32,i64,&'static str) = (20,-15,"Hello World!");
+    ///     let lambda = move || -> String {
     ///           format!("Line {:?} DateCode {:?} Log \"{}\"",a.0,a.1,a.2)
     ///     };
     ///     let mut memoized = Memoized::new(lambda);
     ///     //process the data
-    ///     memoized.process(tup);
+    ///     memoized.process();
     ///     //borrowing the processed, as it's processed data type
     ///     let x: &str = &memoized;
     ///     assert_eq!( x, "Line 20 DateCode -15 Log \"Hello World!\"");
     ///
-    pub fn process(&mut self, data: I) {
-        let val = match self {
-            &mut Memoized::Processed(_) => panic!("Already processed"),
-            &mut Memoized::UnInitialized(_,ref z) => z(data)
+    pub fn process(&mut self) {
+        if self.processed() {
+            return;
+        }
+        let val = match std::mem::replace(self, Memoized::Processed(None)) {
+            Memoized::Processed(_) => panic!("Already processed"),
+            Memoized::UnInitialized(z) => (z)()
         };
-        *self = Memoized::Processed(val);
+        *self = Memoized::Processed(Some(val));
     }
-    ///Informs user if a field has been Processed.
+    /// Informs user if a field has been Processed.
     ///
     ///     use memoization::Memoized;
     ///
-    ///     let tup: (i32,i64,&'static str) = (20,-15,"Hello World!");
-    ///     let lambda = | a: (i32,i64,&str) | -> String {
+    ///     let a: (i32,i64,&'static str) = (20,-15,"Hello World!");
+    ///     let lambda = move || -> String {
     ///           format!("Line {:?} DateCode {:?} Log \"{}\"",a.0,a.1,a.2)
     ///     };
     ///     let mut memoized = Memoized::new(lambda);
     ///     //data is not initalized/processed
     ///     assert!( ! memoized.processed() );
     ///     //process the data
-    ///     memoized.process(tup);
+    ///     memoized.process();
     ///     //data is now initalized
     ///     assert!( memoized.processed() );
     ///
@@ -132,37 +128,37 @@ impl<I:'static,O,Func:Fn(I)->O> Memoized<I,O,Func> {
         }
     }
 }
-impl<I:'static,O,Func:Fn(I)->O> Deref for Memoized<I,O,Func> {
+impl<O,Func:FnOnce()->O> Deref for Memoized<O,Func> {
     type Target = O;
     fn deref<'b>(&'b self) -> &'b Self::Target {
         match self {
-            &Memoized::Processed(ref x) => x,
+            &Memoized::Processed(Option::Some(ref x)) => x,
             _ => panic!("Attempted to derefence uninitalized memoized value")
         }
     }
 }
-impl<I:'static,O,Func:Fn(I)->O> DerefMut for Memoized<I,O,Func> {
+impl<O,Func:FnOnce()->O> DerefMut for Memoized<O,Func> {
     fn deref_mut<'b>(&'b mut self) -> &'b mut Self::Target {
-        if self.processed() {
-            match self {
-                &mut Memoized::Processed(ref mut x) => return x,
-                _ => unreachable!()
-            };
-        } else {
-            *self = Memoized::Processed(unsafe{std::mem::zeroed()});
-            match self {
-                &mut Memoized::Processed(ref mut x) => return x,
-                _ => unreachable!()
-            };
+        self.process();
+        match self {
+            &mut Memoized::Processed(Option::Some(ref mut x)) => x,
+            _ => unreachable!()
         }
     }
 }
-impl<I:'static,O,Func:Fn(I)->O> Borrow<O> for Memoized<I,O,Func> {
+impl<O,Func:FnOnce()->O> AsRef<O> for Memoized<O,Func> {
+    fn as_ref<'a>(&'a self) -> &'a O {
+        <Self as Deref>::deref(self)
+    }
+}
+impl<O,Func:FnOnce()->O> AsMut<O> for Memoized<O,Func> {
+    fn as_mut<'a>(&'a mut self) -> &'a mut O {
+        <Self as DerefMut>::deref_mut(self)
+    }
+}
+impl<O,Func:FnOnce()->O> Borrow<O> for Memoized<O,Func> {
     fn borrow<'b>(&'b self) -> &'b O {
-        match self {
-            &Memoized::Processed(ref x) => x,
-            _ => panic!("Attempted to borrow uninitalized memoized value")
-        }
+        self.as_ref()
     }
 }
 
@@ -171,7 +167,8 @@ mod test {
     #[test]
     fn test_memoized_0() {
         //build lambda function
-        let lambda = |x: i32| -> String {
+        let x = 5;
+        let lambda = move || -> String {
             x.to_string()
         };
         //build object
@@ -179,7 +176,7 @@ mod test {
         //value shouldn't be initialized
         assert_eq!(dut.processed(), false);
         //initialized the value
-        dut.process(5);
+        dut.process();
         //check value is initialized
         assert_eq!(dut.processed(), true);
         //check on borrow
@@ -188,8 +185,8 @@ mod test {
     }
     #[test]
     fn test_memoized_2() {
-
-        let lambda = |x:i32| -> String {
+        let x = 5000;
+        let lambda = move || -> String {
             x.to_string()
         };
         let mut dut = Memoized::new(lambda);
@@ -201,12 +198,13 @@ mod test {
     fn eq_str(a: &str, b: &str) -> bool {
         a == b
     }
-    struct Testing<I:'static,O,F: Fn(I)->O> {
-        data: Memoized<I,O,F>
+    struct Testing<O,F: FnOnce()->O> {
+        data: Memoized<O,F>
     }
     #[test]
     fn test_testing_pattern() {
-        let lambda = |x: i32| -> String {
+        let x = 9000;
+        let lambda = move || -> String {
             x.to_string()
         };
         let mut dut = Testing {
